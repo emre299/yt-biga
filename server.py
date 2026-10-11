@@ -45,12 +45,16 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
     sarki_adi = arguments.get("sarki_adi")
     
 # BOT ENGELİNİ AŞMAK İÇİN ÇEREZ DOSYASI EKLENDİ
-ydl_opts = {
+# BOT ENGELİNİ AŞMAK İÇİN ÇEREZ DOSYASI EKLENDİ
+    ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'noplaylist': True,
         'quiet': True,
         'extract_flat': False,
-        'cookiefile': 'cookies.txt'
+        'cookiefile': 'cookies.txt',  # <--- İŞTE BİZİ KURTARACAK SATIR BU
+        'extractor_args': {
+            'youtube': ['player_client=android', 'client=android'] 
+        }
     }
     
     try:
