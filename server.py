@@ -44,16 +44,22 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
         
     sarki_adi = arguments.get("sarki_adi")
     
+    # YOUTUBE BOT ENGELİNİ AŞMAK İÇİN EKLENEN GİZLENME AYARLARI
     ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'noplaylist': True,
         'quiet': True,
-        'extract_flat': False
+        'extract_flat': False,
+        'extractor_args': {
+            # YouTube'a bilgisayar değil, mobil bir Android cihaz olduğumuzu söylüyoruz
+            'youtube': ['player_client=android', 'client=android'] 
+        }
     }
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch1:{sarki_adi}", download=False)
+            # ytsearch1 yerine doğrudan YouTube Music (ytmsearch1) kullanıyoruz
+            info = ydl.extract_info(f"ytmsearch1:{sarki_adi}", download=False)
             
             if 'entries' in info and len(info['entries']) > 0:
                 entry = info['entries'][0]
@@ -70,10 +76,9 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
     except Exception as e:
         return [types.TextContent(type="text", text=f"Hata oluştu: {str(e)}")]
 
-# 4. SSE Ağ Tünelleri (ÇÖKME HATASININ DÜZELTİLDİĞİ YER)
+# 4. SSE Ağ Tünelleri
 @app.get("/sse")
 async def handle_sse(request: Request):
-    # Tuple hatasını önlemek için iki kanalı (read_stream, write_stream) ayrı ayrı açıyoruz
     async with transport.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
         await mcp.run(read_stream, write_stream, mcp.create_initialization_options())
 
