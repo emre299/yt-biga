@@ -44,9 +44,8 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
         
     sarki_adi = arguments.get("sarki_adi")
     
-# BOT ENGELİNİ AŞMAK İÇİN ÇEREZ DOSYASI EKLENDİ
-# BOT ENGELİNİ AŞMAK İÇİN ÇEREZ DOSYASI EKLENDİ
-ydl_opts = {
+    # YALNIZCA ÇEREZ KULLANIYORUZ, ANDROID GİZLENMESİNİ KALDIRDIK
+    ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'noplaylist': True,
         'quiet': True,
