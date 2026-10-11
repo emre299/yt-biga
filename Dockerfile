@@ -2,13 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# yt-dlp'nin ses akışlarını daha iyi ayrıştırması için FFmpeg yüklüyoruz
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server.py .
+# İçerideki her şeyi (server.py ve cookies.txt dahil) kopyala
+COPY . .
 
 EXPOSE 8000
 
