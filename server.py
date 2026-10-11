@@ -1,7 +1,18 @@
 from mcp.server.fastmcp import FastMCP
 import yt_dlp
+import uvicorn
 
-# MCP Sunucusunu Başlat
+# --- UVICORN YAMASI ---
+# Uvicorn'un varsayılan olarak 127.0.0.1'de (kapalı ağda) çalışmasını engelleyip
+# onu zorla 0.0.0.0'da (dışarıya tam açık) ve 8000 portunda çalıştırıyoruz.
+original_run = uvicorn.run
+def custom_run(*args, **kwargs):
+    kwargs['host'] = '0.0.0.0'
+    kwargs['port'] = 8000
+    original_run(*args, **kwargs)
+uvicorn.run = custom_run
+# -----------------------
+
 mcp = FastMCP("YouTubeMusicStreamer")
 
 @mcp.tool()
@@ -20,7 +31,6 @@ def play_youtube_music(sarki_adi: str) -> str:
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # ytsearch1: parametresi, arama sonucundaki sadece ilk videoyu getirir
             info = ydl.extract_info(f"ytsearch1:{sarki_adi}", download=False)
             
             if 'entries' in info and len(info['entries']) > 0:
@@ -28,7 +38,6 @@ def play_youtube_music(sarki_adi: str) -> str:
                 title = entry.get('title', 'Bilinmeyen Şarkı')
                 url = entry.get('url', '')
                 
-                # Asistanın beynine (LLM) ne yapması gerektiğini açıkça söylüyoruz
                 return (f"BAŞARILI: '{title}' adlı şarkı bulundu. "
                         f"Lütfen ESP32 cihazına şu doğrudan ses akışı URL'sini "
                         f"çaldırması için komut gönder: {url}")
@@ -39,5 +48,4 @@ def play_youtube_music(sarki_adi: str) -> str:
         return f"Arama sırasında hata oluştu: {str(e)}"
 
 if __name__ == "__main__":
-    # mcphub'ın bağlanabilmesi için SSE (Server-Sent Events) protokolüyle 8000 portunda başlatıyoruz
     mcp.run(transport='sse')
