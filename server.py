@@ -8,11 +8,11 @@ import yt_dlp
 
 app = FastAPI()
 
-# 1. MCP Sunucusunu saf (raw) yapıda oluşturuyoruz
+# 1. MCP Sunucusu ve Taşıyıcı
 mcp = Server("YouTubeMusicStreamer")
 transport = SseServerTransport("/messages")
 
-# CORS Güvenlik Duvarı İzinleri (mcphub 421 ve bağlantı hatalarını kökten çözer)
+# CORS Güvenlik İzinleri
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,7 +21,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. Asistanın göreceği araçları (tool) sisteme tanıtıyoruz
 @mcp.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
     return [
@@ -38,7 +37,6 @@ async def handle_list_tools() -> list[types.Tool]:
         )
     ]
 
-# 3. Asistan aracı tetiklediğinde çalışacak asıl işlem (YouTube araması)
 @mcp.call_tool()
 async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     if name != "play_youtube_music":
@@ -72,16 +70,16 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
     except Exception as e:
         return [types.TextContent(type="text", text=f"Hata oluştu: {str(e)}")]
 
-# 4. SSE Ağ Tünelleri (mcphub'ın Coolify ağından bize bağlandığı yerler)
+# 4. SSE Ağ Tünelleri (ÇÖKME HATASININ DÜZELTİLDİĞİ YER)
 @app.get("/sse")
 async def handle_sse(request: Request):
-    async with transport.connect_sse(request.scope, request.receive, request._send) as stream:
-        await mcp.run(stream, stream, mcp.create_initialization_options())
+    # Tuple hatasını önlemek için iki kanalı (read_stream, write_stream) ayrı ayrı açıyoruz
+    async with transport.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
+        await mcp.run(read_stream, write_stream, mcp.create_initialization_options())
 
 @app.post("/messages")
 async def handle_messages(request: Request):
     await transport.handle_post_message(request.scope, request.receive, request._send)
 
-# 5. Uvicorn'u doğrudan (yamasız) 0.0.0.0 ve 8000 portunda başlatıyoruz
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
