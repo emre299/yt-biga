@@ -40,4 +40,4 @@ def play_youtube_music(sarki_adi: str) -> str:
 
 if __name__ == "__main__":
     # mcphub'ın bağlanabilmesi için SSE (Server-Sent Events) protokolüyle 8000 portunda başlatıyoruz
-    mcp.run(transport='sse', host='0.0.0.0', port=8000)
+    mcp.run(transport='sse')
