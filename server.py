@@ -1,24 +1,22 @@
-from mcp.server.fastmcp import FastMCP
-import yt_dlp
+# 1. EN ÜSTTE UVICORN YAMASI (Sıralama çok önemli!)
 import uvicorn
-
-# --- UVICORN YAMASI ---
-# Uvicorn'un varsayılan olarak 127.0.0.1'de (kapalı ağda) çalışmasını engelleyip
-# onu zorla 0.0.0.0'da (dışarıya tam açık) ve 8000 portunda çalıştırıyoruz.
 original_run = uvicorn.run
 def custom_run(*args, **kwargs):
     kwargs['host'] = '0.0.0.0'
     kwargs['port'] = 8000
     original_run(*args, **kwargs)
 uvicorn.run = custom_run
-# -----------------------
+
+# 2. ŞİMDİ DİĞER KÜTÜPHANELERİ ÇAĞIRIYORUZ
+from mcp.server.fastmcp import FastMCP
+import yt_dlp
 
 mcp = FastMCP("YouTubeMusicStreamer")
 
 @mcp.tool()
 def play_youtube_music(sarki_adi: str) -> str:
     """
-    Kullanıcı bir şarkı veya müzik istediğinde YouTube'da arama yapar ve 
+    Kullanıcı bir şarkı istediğinde YouTube'da arama yapar ve 
     ESP32'nin doğrudan hoparlöründen çalabilmesi için 
     saf ses akışı (.m4a) URL'sini döndürür.
     """
