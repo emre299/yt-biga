@@ -1,28 +1,26 @@
-# 1. EN ÜSTTE UVICORN ÇEKİRDEK YAMASI
-# Kütüphane hangi yöntemi denerse denesin, Config'i ezdiğimiz için 0.0.0.0'dan kaçamayacak.
 import uvicorn
-original_config_init = uvicorn.Config.__init__
-
-def custom_config_init(self, *args, **kwargs):
-    kwargs['host'] = '0.0.0.0'
-    kwargs['port'] = 8000
-    original_config_init(self, *args, **kwargs)
-
-uvicorn.Config.__init__ = custom_config_init
-
-# 2. STANDART MCP VE YOUTUBE KODLARI
-from mcp.server.fastmcp import FastMCP
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from mcp.server import Server
+from mcp.server.sse import SseServerTransport
 import yt_dlp
 
-mcp = FastMCP("YouTubeMusicStreamer")
+# Uygulama ve MCP Sunucusunu Başlat
+app = FastAPI()
+mcp = Server("YouTubeMusicStreamer")
+transport = SseServerTransport("/messages")
+
+# 421 ve CORS Hatalarını Kökten Çözen Güvenlik İzinleri
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @mcp.tool()
-def play_youtube_music(sarki_adi: str) -> str:
-    """
-    Kullanıcı bir şarkı veya müzik istediğinde YouTube'da arama yapar ve 
-    ESP32'nin doğrudan hoparlöründen çalabilmesi için 
-    saf ses akışı (.m4a) URL'sini döndürür.
-    """
+async def play_youtube_music(sarki_adi: str) -> str:
     ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'noplaylist': True,
@@ -43,10 +41,21 @@ def play_youtube_music(sarki_adi: str) -> str:
                         f"Lütfen ESP32 cihazına şu doğrudan ses akışı URL'sini "
                         f"çaldırması için komut gönder: {url}")
             
-            return "Şarkı bulunamadı. Lütfen başka bir kelimeyle dene."
+            return "Şarkı bulunamadı."
             
     except Exception as e:
-        return f"Arama sırasında hata oluştu: {str(e)}"
+        return f"Hata oluştu: {str(e)}"
 
+# SSE Bağlantı Noktaları (mcphub'ın bağlandığı yerler)
+@app.get("/sse")
+async def handle_sse(request: Request):
+    async with transport.connect_sse(request.scope, request.receive, request._send) as stream:
+        await mcp.run(stream, stream, mcp.create_initialization_options())
+
+@app.post("/messages")
+async def handle_messages(request: Request):
+    await transport.handle_post_message(request.scope, request.receive, request._send)
+
+# Doğal yollardan, yamasız 0.0.0.0 başlatma
 if __name__ == "__main__":
-    mcp.run(transport='sse')
+    uvicorn.run(app, host="0.0.0.0", port=8000)
