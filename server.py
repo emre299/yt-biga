@@ -46,15 +46,12 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
     
 # BOT ENGELİNİ AŞMAK İÇİN ÇEREZ DOSYASI EKLENDİ
 # BOT ENGELİNİ AŞMAK İÇİN ÇEREZ DOSYASI EKLENDİ
-    ydl_opts = {
+ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'noplaylist': True,
         'quiet': True,
         'extract_flat': False,
-        'cookiefile': 'cookies.txt',  # <--- İŞTE BİZİ KURTARACAK SATIR BU
-        'extractor_args': {
-            'youtube': ['player_client=android', 'client=android'] 
-        }
+        'cookiefile': 'cookies.txt'
     }
     
     try:
