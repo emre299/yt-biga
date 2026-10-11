@@ -1,13 +1,16 @@
-# 1. EN ÜSTTE UVICORN YAMASI (Sıralama çok önemli!)
+# 1. EN ÜSTTE UVICORN ÇEKİRDEK YAMASI
+# Kütüphane hangi yöntemi denerse denesin, Config'i ezdiğimiz için 0.0.0.0'dan kaçamayacak.
 import uvicorn
-original_run = uvicorn.run
-def custom_run(*args, **kwargs):
+original_config_init = uvicorn.Config.__init__
+
+def custom_config_init(self, *args, **kwargs):
     kwargs['host'] = '0.0.0.0'
     kwargs['port'] = 8000
-    original_run(*args, **kwargs)
-uvicorn.run = custom_run
+    original_config_init(self, *args, **kwargs)
 
-# 2. ŞİMDİ DİĞER KÜTÜPHANELERİ ÇAĞIRIYORUZ
+uvicorn.Config.__init__ = custom_config_init
+
+# 2. STANDART MCP VE YOUTUBE KODLARI
 from mcp.server.fastmcp import FastMCP
 import yt_dlp
 
@@ -16,7 +19,7 @@ mcp = FastMCP("YouTubeMusicStreamer")
 @mcp.tool()
 def play_youtube_music(sarki_adi: str) -> str:
     """
-    Kullanıcı bir şarkı istediğinde YouTube'da arama yapar ve 
+    Kullanıcı bir şarkı veya müzik istediğinde YouTube'da arama yapar ve 
     ESP32'nin doğrudan hoparlöründen çalabilmesi için 
     saf ses akışı (.m4a) URL'sini döndürür.
     """
