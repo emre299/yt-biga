@@ -3,14 +3,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
+import mcp.types as types
 import yt_dlp
 
-# Uygulama ve MCP Sunucusunu Başlat
 app = FastAPI()
+
+# 1. MCP Sunucusunu saf (raw) yapıda oluşturuyoruz
 mcp = Server("YouTubeMusicStreamer")
 transport = SseServerTransport("/messages")
 
-# 421 ve CORS Hatalarını Kökten Çözen Güvenlik İzinleri
+# CORS Güvenlik Duvarı İzinleri (mcphub 421 ve bağlantı hatalarını kökten çözer)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,8 +21,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@mcp.tool()
-async def play_youtube_music(sarki_adi: str) -> str:
+# 2. Asistanın göreceği araçları (tool) sisteme tanıtıyoruz
+@mcp.list_tools()
+async def handle_list_tools() -> list[types.Tool]:
+    return [
+        types.Tool(
+            name="play_youtube_music",
+            description="Kullanıcı YouTube'dan müzik istediğinde arama yapar ve ESP32 cihazı için doğrudan ses akışı URL'sini döndürür.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "sarki_adi": {"type": "string", "description": "Aranacak şarkının adı (Örn: Ali Babanın Çiftliği)"}
+                },
+                "required": ["sarki_adi"]
+            }
+        )
+    ]
+
+# 3. Asistan aracı tetiklediğinde çalışacak asıl işlem (YouTube araması)
+@mcp.call_tool()
+async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent]:
+    if name != "play_youtube_music":
+        raise ValueError(f"Bilinmeyen komut: {name}")
+        
+    sarki_adi = arguments.get("sarki_adi")
+    
     ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'noplaylist': True,
@@ -37,16 +62,17 @@ async def play_youtube_music(sarki_adi: str) -> str:
                 title = entry.get('title', 'Bilinmeyen Şarkı')
                 url = entry.get('url', '')
                 
-                return (f"BAŞARILI: '{title}' adlı şarkı bulundu. "
-                        f"Lütfen ESP32 cihazına şu doğrudan ses akışı URL'sini "
-                        f"çaldırması için komut gönder: {url}")
+                mesaj = (f"BAŞARILI: '{title}' adlı şarkı bulundu. "
+                         f"Lütfen hoparlörden çalması için ESP32 cihazına şu doğrudan ses akışı URL'sini komut olarak gönder: {url}")
+                         
+                return [types.TextContent(type="text", text=mesaj)]
             
-            return "Şarkı bulunamadı."
+            return [types.TextContent(type="text", text="Şarkı bulunamadı.")]
             
     except Exception as e:
-        return f"Hata oluştu: {str(e)}"
+        return [types.TextContent(type="text", text=f"Hata oluştu: {str(e)}")]
 
-# SSE Bağlantı Noktaları (mcphub'ın bağlandığı yerler)
+# 4. SSE Ağ Tünelleri (mcphub'ın Coolify ağından bize bağlandığı yerler)
 @app.get("/sse")
 async def handle_sse(request: Request):
     async with transport.connect_sse(request.scope, request.receive, request._send) as stream:
@@ -56,6 +82,6 @@ async def handle_sse(request: Request):
 async def handle_messages(request: Request):
     await transport.handle_post_message(request.scope, request.receive, request._send)
 
-# Doğal yollardan, yamasız 0.0.0.0 başlatma
+# 5. Uvicorn'u doğrudan (yamasız) 0.0.0.0 ve 8000 portunda başlatıyoruz
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
