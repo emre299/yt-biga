@@ -44,9 +44,9 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
         
     sarki_adi = arguments.get("sarki_adi")
     
-    # YALNIZCA ÇEREZ KULLANIYORUZ, ANDROID GİZLENMESİNİ KALDIRDIK
+    # FORMAT KURALI ESNETİLDİ (ba/b: bestaudio veya best)
     ydl_opts = {
-        'format': 'bestaudio[ext=m4a]/bestaudio/best',
+        'format': 'ba/b',
         'noplaylist': True,
         'quiet': True,
         'extract_flat': False,
@@ -55,7 +55,6 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # ytmsearch1 yerine tekrar sağlam olan ytsearch1 kullanıyoruz
             info = ydl.extract_info(f"ytsearch1:{sarki_adi}", download=False)
             
             if 'entries' in info and len(info['entries']) > 0:
