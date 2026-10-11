@@ -44,22 +44,21 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
         
     sarki_adi = arguments.get("sarki_adi")
     
-    # YOUTUBE BOT ENGELİNİ AŞMAK İÇİN EKLENEN GİZLENME AYARLARI
+    # BOT ENGELİNİ AŞMAK İÇİN GİZLENME AYARLARI BURADA KALIYOR
     ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'noplaylist': True,
         'quiet': True,
         'extract_flat': False,
         'extractor_args': {
-            # YouTube'a bilgisayar değil, mobil bir Android cihaz olduğumuzu söylüyoruz
             'youtube': ['player_client=android', 'client=android'] 
         }
     }
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # ytsearch1 yerine doğrudan YouTube Music (ytmsearch1) kullanıyoruz
-            info = ydl.extract_info(f"ytmsearch1:{sarki_adi}", download=False)
+            # ytmsearch1 yerine tekrar sağlam olan ytsearch1 kullanıyoruz
+            info = ydl.extract_info(f"ytsearch1:{sarki_adi}", download=False)
             
             if 'entries' in info and len(info['entries']) > 0:
                 entry = info['entries'][0]
