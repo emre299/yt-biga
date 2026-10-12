@@ -8,11 +8,9 @@ import yt_dlp
 
 app = FastAPI()
 
-# 1. MCP Sunucusu ve Taşıyıcı
 mcp = Server("YouTubeMusicStreamer")
 transport = SseServerTransport("/messages")
 
-# CORS Güvenlik İzinleri
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,7 +28,7 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "sarki_adi": {"type": "string", "description": "Aranacak şarkının adı (Örn: Ali Babanın Çiftliği)"}
+                    "sarki_adi": {"type": "string", "description": "Aranacak şarkının adı"}
                 },
                 "required": ["sarki_adi"]
             }
@@ -44,16 +42,13 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
         
     sarki_adi = arguments.get("sarki_adi")
     
-    # NİHAİ ÇÖZÜM: Çerezleri sildik. Formatı (ba/b) esnettik. 
-    # YouTube'a "Ben bir cep telefonuyum" diyerek EJS bulmacasını atlıyoruz!
+    # FORMAT ESNETİLDİ VE ÇEREZLER GERİ GELDİ (Deno bulmacayı çözecek)
     ydl_opts = {
         'format': 'ba/b',
         'noplaylist': True,
         'quiet': True,
         'extract_flat': False,
-        'extractor_args': {
-            'youtube': ['client=android,ios']
-        }
+        'cookiefile': 'cookies.txt'
     }
     
     try:
@@ -75,7 +70,6 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
     except Exception as e:
         return [types.TextContent(type="text", text=f"Hata oluştu: {str(e)}")]
 
-# 4. SSE Ağ Tünelleri
 @app.get("/sse")
 async def handle_sse(request: Request):
     async with transport.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
