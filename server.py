@@ -44,13 +44,16 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
         
     sarki_adi = arguments.get("sarki_adi")
     
-    # FORMAT KURALI ESNETİLDİ (ba/b: bestaudio veya best)
+    # NİHAİ ÇÖZÜM: Çerezleri sildik. Formatı (ba/b) esnettik. 
+    # YouTube'a "Ben bir cep telefonuyum" diyerek EJS bulmacasını atlıyoruz!
     ydl_opts = {
         'format': 'ba/b',
         'noplaylist': True,
         'quiet': True,
         'extract_flat': False,
-        'cookiefile': 'cookies.txt'
+        'extractor_args': {
+            'youtube': ['client=android,ios']
+        }
     }
     
     try:
