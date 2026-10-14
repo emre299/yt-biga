@@ -23,7 +23,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Gelen tüm istekleri Runtime Logs ekranında görmek için takipçi
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     if request.url.path not in ["/sse", "/messages"]:
@@ -43,7 +42,6 @@ def find_youtube_video(query: str):
             return info['entries'][0]
     return None
 
-# ESP32'nin bağlanabileceği tüm olası uç noktalar (/stream_pcm ve çift yazım ihtimali)
 @app.get("/stream_pcm")
 @app.get("/stream_pcm/stream_pcm")
 async def handle_stream_pcm(
@@ -73,11 +71,9 @@ async def handle_stream_pcm(
         mp3_path = f"/play/{video_id}.mp3"
         mp3_full_url = f"{PUBLIC_URL}{mp3_path}"
 
-        # Eğer cihaz doğrudan ses akışı (url=true) isterse doğrudan MP3 başlat
         if url.lower() == "true":
             return stream_mp3(video_id)
 
-        # ESP32'nin beklediği JSON yanıtı
         return JSONResponse({
             "title": title,
             "artist": s_artist or "YouTube",
@@ -90,18 +86,23 @@ async def handle_stream_pcm(
         print(f"[HATA] {str(e)}", flush=True)
         return JSONResponse({"error": str(e)}, status_code=500)
 
-@app.get("/play/{video_id}.mp3")
+# .mp3 UZANTI HATASININ DÜZELTİLDİĞİ YER
 @app.get("/play/{video_id}")
 def stream_mp3(video_id: str):
-    print(f"[MP3 YAYINI BASLIYOR] Video ID: {video_id}", flush=True)
-    youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+    # Eğer ID'nin sonunda .mp3 varsa temizle (Örn: SCZgGVqVsbY.mp3 -> SCZgGVqVsbY)
+    clean_id = video_id.replace(".mp3", "").strip()
+    print(f"[MP3 YAYINI BASLIYOR] Temiz Video ID: {clean_id}", flush=True)
     
+    youtube_url = f"https://www.youtube.com/watch?v={clean_id}"
+    
+    # ESP32'nin MP3 çözücüsü (helix/libmad) için en uyumlu ayarlar (-write_xing 0 ve 44100Hz/24000Hz)
     cmd = (
-        f'yt-dlp --cookies cookies.txt --js-runtimes deno,node -f "ba/b" -o - "{youtube_url}" | '
-        f'ffmpeg -i pipe:0 -vn -acodec libmp3lame -ab 64k -ac 1 -ar 24000 -f mp3 -'
+        f'yt-dlp --cookies cookies.txt --js-runtimes deno,node --no-playlist -f "ba/b" -o - "{youtube_url}" | '
+        f'ffmpeg -hide_banner -loglevel error -i pipe:0 -vn -acodec libmp3lame -ab 64k -ac 1 -ar 24000 -write_xing 0 -id3v2_version 0 -f mp3 -'
     )
     
-    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    # Hataları Runtime Logs'da görebilmek için stderr'i gizlemiyoruz
+    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
 
     def generate():
         try:
@@ -142,7 +143,6 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
     except Exception as e:
         return [types.TextContent(type="text", text=f"Hata oluştu: {str(e)}")]
 
-# Unexpected ASGI message hatasını önlemek için Response() döndürüyoruz
 @app.get("/sse")
 async def handle_sse(request: Request):
     async with transport.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
