@@ -1,7 +1,7 @@
 import os
 import subprocess
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from mcp.server import Server
@@ -13,7 +13,6 @@ app = FastAPI()
 mcp = Server("YouTubeMusicStreamer")
 transport = SseServerTransport("/messages")
 
-# Coolify üzerindeki dış erişim adresin
 PUBLIC_URL = "http://d8izg6hveevjybbi6xc9h3y2.138.2.176.169.sslip.io"
 
 app.add_middleware(
@@ -24,7 +23,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Yardımcı Fonksiyon: Şarkıyı YouTube'da 1 saniyede bulur
+# Gelen tüm istekleri Runtime Logs ekranında görmek için takipçi
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    if request.url.path not in ["/sse", "/messages"]:
+        print(f"[GELEN ISTEK] {request.method} {request.url}", flush=True)
+    return await call_next(request)
+
 def find_youtube_video(query: str):
     ydl_opts = {
         'quiet': True,
@@ -38,40 +43,45 @@ def find_youtube_video(query: str):
             return info['entries'][0]
     return None
 
-# 1. TIENHUYIOT & NTC95 YAZILIMLARININ DOĞRUDAN BAĞLANDIĞI UÇ NOKTA (/stream_pcm)
+# ESP32'nin bağlanabileceği tüm olası uç noktalar (/stream_pcm ve çift yazım ihtimali)
 @app.get("/stream_pcm")
+@app.get("/stream_pcm/stream_pcm")
 async def handle_stream_pcm(
     request: Request,
     song: str = "",
+    song_name: str = "",
     artist: str = "",
     singer: str = "",
     url: str = ""
 ):
-    print(f"[ESP32 MUZIK ISTEGI] URL: {request.url}", flush=True)
+    print(f"[ESP32 MUZIK ISTEGI] Parametreler: {request.query_params}", flush=True)
     
-    search_query = f"{song} {artist} {singer}".strip()
+    s_name = song or song_name
+    s_artist = artist or singer
+    search_query = f"{s_name} {s_artist}".strip()
+    
     if not search_query:
-        return JSONResponse({"error": "Şarkı adı belirtilmedi"}, status_code=400)
+        return JSONResponse({"error": "Sarki adi belirtilmedi"}, status_code=400)
 
     try:
         entry = find_youtube_video(search_query)
         if not entry:
-            return JSONResponse({"error": "Şarkı bulunamadı"}, status_code=404)
+            return JSONResponse({"error": "Sarki bulunamadi"}, status_code=404)
 
         video_id = entry.get('id')
-        title = entry.get('title', song)
-        mp3_full_url = f"{PUBLIC_URL}/play/{video_id}.mp3"
+        title = entry.get('title', s_name)
+        mp3_path = f"/play/{video_id}.mp3"
+        mp3_full_url = f"{PUBLIC_URL}{mp3_path}"
 
-        # Eğer cihaz doğrudan ses akışı isterse (url=true)
+        # Eğer cihaz doğrudan ses akışı (url=true) isterse doğrudan MP3 başlat
         if url.lower() == "true":
             return stream_mp3(video_id)
 
-        # Cihazın beklediği standart JSON yanıtı
+        # ESP32'nin beklediği JSON yanıtı
         return JSONResponse({
             "title": title,
-            "artist": artist or singer or "YouTube",
-            "audio_url": f"/play/{video_id}.mp3",
-            "audio_full_url": mp3_full_url,
+            "artist": s_artist or "YouTube",
+            "audio_url": mp3_path,
             "url": mp3_full_url,
             "lyric_url": "",
             "duration": int(entry.get('duration') or 240)
@@ -80,7 +90,6 @@ async def handle_stream_pcm(
         print(f"[HATA] {str(e)}", flush=True)
         return JSONResponse({"error": str(e)}, status_code=500)
 
-# 2. CANLI MP3 DÖNÜŞTÜRÜCÜ VE YAYINLAYICI
 @app.get("/play/{video_id}.mp3")
 @app.get("/play/{video_id}")
 def stream_mp3(video_id: str):
@@ -103,7 +112,6 @@ def stream_mp3(video_id: str):
 
     return StreamingResponse(generate(), media_type="audio/mpeg")
 
-# 3. MCP SUNUCUSU (Yedek olarak durmaya devam eder)
 @mcp.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
     return [
@@ -134,14 +142,17 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
     except Exception as e:
         return [types.TextContent(type="text", text=f"Hata oluştu: {str(e)}")]
 
+# Unexpected ASGI message hatasını önlemek için Response() döndürüyoruz
 @app.get("/sse")
 async def handle_sse(request: Request):
     async with transport.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
         await mcp.run(read_stream, write_stream, mcp.create_initialization_options())
+    return Response()
 
 @app.post("/messages")
 async def handle_messages(request: Request):
     await transport.handle_post_message(request.scope, request.receive, request._send)
+    return Response()
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
