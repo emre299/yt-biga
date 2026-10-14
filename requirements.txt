@@ -1,5 +1,4 @@
 mcp[cli]<2
-yt-dlp
+yt-dlp[default]
 fastapi
 uvicorn
-# Docker onbellegini kirmak icin guncelleme satiri v1
