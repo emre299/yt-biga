@@ -74,34 +74,36 @@ async def handle_stream_pcm(
         if url.lower() == "true":
             return stream_mp3(video_id)
 
+        # Şarkının toplam süresi (saniye cinsinden)
+        duration_sec = int(entry.get('duration') or 240)
+
+        # Ekranın ilerleme çubuğu ve süreyi algılaması için tüm alternatif formatlar eklendi
         return JSONResponse({
             "title": title,
             "artist": s_artist or "YouTube",
             "audio_url": mp3_path,
             "url": mp3_full_url,
             "lyric_url": "",
-            "duration": int(entry.get('duration') or 240)
+            "duration": duration_sec,
+            "length": duration_sec,
+            "total_time": duration_sec
         })
     except Exception as e:
         print(f"[HATA] {str(e)}", flush=True)
         return JSONResponse({"error": str(e)}, status_code=500)
 
-# .mp3 UZANTI HATASININ DÜZELTİLDİĞİ YER
 @app.get("/play/{video_id}")
 def stream_mp3(video_id: str):
-    # Eğer ID'nin sonunda .mp3 varsa temizle (Örn: SCZgGVqVsbY.mp3 -> SCZgGVqVsbY)
     clean_id = video_id.replace(".mp3", "").strip()
     print(f"[MP3 YAYINI BASLIYOR] Temiz Video ID: {clean_id}", flush=True)
     
     youtube_url = f"https://www.youtube.com/watch?v={clean_id}"
     
-    # ESP32'nin MP3 çözücüsü (helix/libmad) için en uyumlu ayarlar (-write_xing 0 ve 44100Hz/24000Hz)
     cmd = (
         f'yt-dlp --cookies cookies.txt --js-runtimes deno,node --no-playlist -f "ba/b" -o - "{youtube_url}" | '
         f'ffmpeg -hide_banner -loglevel error -i pipe:0 -vn -acodec libmp3lame -ab 64k -ac 1 -ar 24000 -write_xing 0 -id3v2_version 0 -f mp3 -'
     )
     
-    # Hataları Runtime Logs'da görebilmek için stderr'i gizlemiyoruz
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
 
     def generate():
