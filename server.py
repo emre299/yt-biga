@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import uvicorn
 from fastapi import FastAPI, Request, Response
@@ -29,12 +30,19 @@ async def log_requests(request: Request, call_next):
         print(f"[GELEN ISTEK] {request.method} {request.url}", flush=True)
     return await call_next(request)
 
+# Orijinal cookies.txt dosyasının yt-dlp tarafından bozulmasını önleyen kopyalayıcı
+def get_safe_cookie_path(temp_name: str) -> str:
+    temp_path = f"/tmp/{temp_name}"
+    if os.path.exists("cookies.txt"):
+        shutil.copyfile("cookies.txt", temp_path)
+    return temp_path
+
 def find_youtube_video(query: str):
+    # Arama işlemi (extract_flat) çerez gerektirmez, çerezi boşuna yıpratmayız
     ydl_opts = {
         'quiet': True,
         'noplaylist': True,
-        'extract_flat': 'in_playlist',
-        'cookiefile': 'cookies.txt'
+        'extract_flat': 'in_playlist'
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(f"ytsearch1:{query}", download=False)
@@ -74,10 +82,8 @@ async def handle_stream_pcm(
         if url.lower() == "true":
             return stream_mp3(video_id)
 
-        # Şarkının toplam süresi (saniye cinsinden)
         duration_sec = int(entry.get('duration') or 240)
 
-        # Ekranın ilerleme çubuğu ve süreyi algılaması için tüm alternatif formatlar eklendi
         return JSONResponse({
             "title": title,
             "artist": s_artist or "YouTube",
@@ -99,8 +105,12 @@ def stream_mp3(video_id: str):
     
     youtube_url = f"https://www.youtube.com/watch?v={clean_id}"
     
+    # Her yayında orijinal cookies.txt'nin taze bir kopyasını kullanıyoruz
+    safe_cookie = get_safe_cookie_path(f"cookies_{clean_id}.txt")
+    
+    # --js-runtimes deno olarak düzeltildi
     cmd = (
-        f'yt-dlp --cookies cookies.txt --js-runtimes deno,node --no-playlist -f "ba/b" -o - "{youtube_url}" | '
+        f'yt-dlp --cookies "{safe_cookie}" --js-runtimes deno --no-playlist -f "ba/b" -o - "{youtube_url}" | '
         f'ffmpeg -hide_banner -loglevel error -i pipe:0 -vn -acodec libmp3lame -ab 64k -ac 1 -ar 24000 -write_xing 0 -id3v2_version 0 -f mp3 -'
     )
     
